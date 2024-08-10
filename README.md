@@ -1,4 +1,4 @@
-# TokenPuzzle
+# Token Puzzle
 Puzzle Game Written In JavaScript
 
 ![Token Puzzle](Token.png)
