@@ -1,0 +1,365 @@
+<html>
+<body style="margin: 0; touch-action: manipulation">
+<canvas></canvas>
+
+<script>
+document.querySelector("body").addEventListener("keydown", KeyDown)
+const canvas = document.querySelector("canvas")
+canvas.addEventListener("click", Click)
+var context = canvas.getContext("2d")
+
+const Color = {
+    Border: -1,
+    Empty: 9,
+    Token: 10,
+    Back: "#18293D",
+    Clue: ["#808080", "#229E31", "#005AB6", "#5D2F8F", "#D71E1E"]
+}
+
+const Layout = {
+    width: 0,
+    half: 0,
+    radius: 0,
+    rect: [],
+}
+
+const Board = {
+    width: 5,
+    height: 5,
+    total: 0,
+    finish: 0,
+
+    table: [],
+    rect: [],
+    offset: [],
+    clue: [],
+    side: [],
+
+    Init() {
+        let line = this.width + 1
+        this.offset = [-line - 1, -line, -line + 1, -1, 1, line - 1, line, line + 1]
+        this.table = []
+        this.rect = []
+
+        for (let y = 0, i = 0, k = this.height + 1; y <= k; y++) {
+            for (let x = 0; x <= this.width; x++, i++) {
+                if (x == 0 || y == 0 || y == k)
+                    this.table.push(Color.Border)
+                else {
+                    this.rect.push(i)
+                    this.table.push(Color.Empty)
+                }
+            }
+        }
+
+        this.table.push(Color.Border) // last cell's bottom right neighbour 
+        this.Create()
+        this.finish = this.clue.length
+    },
+
+    Create() {
+        this.clue = []
+        this.rect.forEach((n) => {this.table[n] = Color.Empty}) // clear table
+
+        while(1) {
+            while(1) { // add clue
+                let i = this.rect[Math.floor(Math.random() * this.rect.length)]
+
+                if (!this.clue.includes(i)) {
+                    this.clue.push(i)
+                    this.table[i] = Math.floor(Math.random() * 4) + 1
+                    break
+                }
+            }
+
+            let value = this.Evaluate()
+
+            while (value == 0 || this.Pattern()) { // no solution or bad pattern
+                let i = Math.floor(Math.random() * this.clue.length) // take clue
+                this.table[this.clue[i]] = Color.Empty
+                this.clue.splice(i, 1)
+                if (this.clue.length == 0) break
+                value = this.Evaluate()
+            }
+
+            if (value == 1 && this.clue.length >= 6 && this.Span()) break
+        }
+
+    },
+
+    Evaluate() {
+        this.side = [] // empty space around clue
+//      this.clue = []
+        this.total = 0
+
+//      this.rect.forEach((n) => { // find clues
+//          let k = this.table[n]
+//          if (k >= 0 && k < 9) this.clue.push(n)
+//      })
+
+        for (let i = 0; i < this.clue.length; i++) { // find sides
+            let k = this.clue[i]
+
+            this.offset.forEach((s) => {
+                let pos = k + s;
+
+                if (this.table[pos] == Color.Empty && !this.FindSide(pos))
+                    this.side.push({pos: pos, clue: i, count: this.table[k]})
+            })
+        }
+
+        if (this.clue.length > 0 && this.side.length > 0)
+            this.Solve(0, 0) // check side 0, no token around
+
+        return this.total
+    },
+
+    Solve(i, count) { // handle side i, real count of i's clue
+        let j = i + 1
+        let node = this.side[i]
+
+        Start: for (let n = 0; n < 2; n++) { // two phases, put token and no token
+            if (n == 0) {
+                if (this.total == 2) return
+                this.table[node.pos] = Color.Token // put token
+                count++
+            }
+            else {
+                this.table[node.pos] = Color.Empty // take back token, restore
+                count--
+                if (this.total == 2) return
+            }
+
+            if (j < this.side.length) { // try next
+                if (this.side[j].clue == node.clue) { // same clue
+                    if (count <= node.count) // not over
+                        this.Solve(j, count) // go next
+                }
+                else { // new clue
+                    if (count == node.count) { // exact
+                       for (let k = this.side[j].clue - 1; k > node.clue; k--) { // handle skip clues
+                           if (this.Count(this.clue[k]) != this.table[this.clue[k]]) { // over or under
+                               if (n == 0) continue Start
+                               else return
+                           }
+                       }
+
+                       this.Solve(j, this.Count(this.clue[this.side[j].clue])) // go next
+                    }
+                }
+            }
+            else { // last side
+                if (count == node.count) { // exact
+                    for (let k = node.clue + 1; k < this.clue.length; k++) { // handle clues behind
+                        if (this.Count(this.clue[k]) != this.table[this.clue[k]]) { // over or under
+                            if (n == 0) continue Start
+                            else return
+                        }
+                    }
+
+                    this.total++;
+                }
+            }
+        }
+    },
+
+    Pattern() {
+        for (let i = 0; i < this.clue.length; i++) {
+            let n = this.clue[i]
+            total = 0
+
+            this.offset.forEach((k) => {
+                if (this.table[n + k] == Color.Empty) total++})
+            if (this.table[n] == total) return true // fill all empty
+        }
+
+        return false
+    },
+
+    Span() {
+        for (let y = 0, j = 0, line2 = false; y < this.height; y++, j += this.width) {
+            let line = true // empty
+
+            for (let x = 0, i = j; x < this.width; x++, i++) {
+
+                if (this.table[this.rect[i]] < 9) { // clue
+                    line = false
+                    break
+                }
+            }
+
+            if (line && line2) return false // two empty lines
+            line2 = line
+        }
+
+        for (let x = 0, line2 = false; x < this.width; x++) {
+            let line = true // empty
+
+            for (let y = 0, i = x; y < this.height; y++, i += this.width) {
+                if (this.table[this.rect[i]] < 9) { // clue
+                    line = false
+                    break
+                }
+            }
+
+            if (line && line2) return false // two empty lines
+            line2 = line
+        }
+
+        return true
+    },
+
+    Count(i) {
+        let total = 0
+        this.offset.forEach((k) => {
+            if (this.table[i + k] == Color.Token) total++})
+        return total
+    },
+
+    Check(i) { // check clue around
+        this.offset.forEach((k) => {
+            let j = i + k
+            let n = this.Value(j)
+
+            if (n > 0) { // is clue
+                if (n == this.Count(j)) { // clue complete
+                    if (!(this.table[j] & 16)) {
+                        this.table[j] |= 16
+                        this.finish--
+                    }
+                }
+                else {
+                    if (this.table[j] & 16) {
+                        this.table[j] &= ~16
+                        this.finish++
+                    }
+                }
+            }
+        })
+    },
+
+    FindSide(k) {
+        for (let i = 0; i < this.side.length; i++)
+            if (this.side[i].pos == k) return true
+        return false
+    },
+
+    Value(i) {
+        let k = this.table[i] & 15
+        if (k >= 0 && k < 9) return k
+        return -1
+    }
+}
+
+Board.Init()
+window.onresize = Resize
+Resize()
+
+function Resize() {
+    canvas.width = window.innerWidth
+    canvas.height = window.innerHeight
+
+    Layout.width = Math.min(canvas.width, canvas.height) / (Board.width + 1 + (Board.width - 1) * 0.035)
+
+    let pad = Math.floor(Layout.width * 0.035)
+    if (pad == 0) pad = 1
+    Layout.width = Math.floor(Layout.width)
+    Layout.half = Layout.width / 2
+    Layout.radius = Layout.width * 0.35
+
+    Layout.rect = []
+    a = {x: Math.floor((canvas.width - Board.width * Layout.width - (Board.width - 1) * pad) / 2),
+        y: Math.floor((canvas.height - Board.height * Layout.width - (Board.height - 1) * pad) / 2)}
+
+    for (let y = 0, i = 0; y < Board.height; y++, a.y += Layout.width + pad) {
+        let b = {...a}
+
+        for (let x = 0; x < Board.width; x++, i++, b.x += Layout.width + pad) {
+            Layout.rect.push({x: b.x, y: b.y})
+        }
+    }
+
+    Draw()
+}
+
+function Draw() {
+    context.fillStyle = Color.Back
+    context.fillRect(0, 0, canvas.width, canvas.height)
+
+    for (let i = 0; i < Board.rect.length; i++) {
+        let k2 = Board.table[Board.rect[i]]
+        let k = k2 & 15
+
+        context.fillStyle = Color.Clue[(k > 0 && k < 5 ? k : 0)]
+        context.fillRect(Layout.rect[i].x, Layout.rect[i].y, Layout.width, Layout.width)
+
+        if (k == Color.Token) {
+            context.beginPath()
+            context.arc(Layout.rect[i].x + Layout.half, Layout.rect[i].y + Layout.half, Layout.radius, 0, 2 * Math.PI)
+            context.fillStyle = "#F08F1E"
+            context.fill()
+            context.lineWidth = Layout.width * 0.035
+            context.strokeStyle = Color.Back
+            context.stroke()
+        }
+
+        if (k2 & 16) { // clue complete
+            context.beginPath()
+            context.moveTo(Layout.rect[i].x + Layout.width * 0.15, Layout.rect[i].y + Layout.width * 0.15)
+            context.lineTo(Layout.rect[i].x + Layout.width * 0.85, Layout.rect[i].y + Layout.width * 0.85)
+            context.moveTo(Layout.rect[i].x + Layout.width * 0.85, Layout.rect[i].y + Layout.width * 0.15)
+            context.lineTo(Layout.rect[i].x + Layout.width * 0.15, Layout.rect[i].y + Layout.width * 0.85)
+
+            context.lineWidth = Layout.width * 0.035
+            context.strokeStyle = Color.Back
+            context.stroke()
+        }
+    }
+}
+
+function KeyDown(event) {
+    if (event.key == "Escape") {
+        Board.rect.forEach((i) => {
+            let k = Board.table[i]
+            if (k == Color.Token)
+                Board.table[i] = Color.Empty
+            else if (k != Color.Border)
+                Board.table[i] &= ~16
+        })
+
+        Board.finish = Board.clue.length
+        Draw()
+    }
+}
+
+function Click(event) {
+    for (let i = 0; i < Layout.rect.length; i++) {
+        if (Layout.rect[i].y <= event.clientY && event.clientY < Layout.rect[i].y + Layout.width) {
+            if (Layout.rect[i].x <= event.clientX && event.clientX < Layout.rect[i].x + Layout.width) {
+                let j = Board.rect[i]
+                let k = Board.table[j]
+
+                if (k == Color.Empty || k == Color.Token) {
+                    Board.table[j] = (k == Color.Empty ? Color.Token : Color.Empty)
+                    Board.Check(j)
+
+                    if (Board.finish == 0 && Board.FindSide(j)) {
+                        var audio = new Audio("End.mp3")
+                        audio.play()
+                    }
+                    else if (k == Color.Empty) {
+                        var audio = new Audio("Click.wav")
+                        audio.play()
+                    }
+
+                    Draw()
+                    return
+                }
+            }
+        }
+    }
+}
+
+</script>
+</body>
+</html>
