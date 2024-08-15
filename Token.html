@@ -9,9 +9,9 @@ canvas.addEventListener("click", Click)
 var context = canvas.getContext("2d")
 
 const Color = {
-    Border: -1,
     Empty: 9,
     Token: 10,
+    Border: 11,
     Back: "#18293D",
     Clue: ["#808080", "#229E31", "#005AB6", "#5D2F8F", "#D71E1E"]
 }
@@ -20,6 +20,7 @@ const Layout = {
     width: 0,
     half: 0,
     radius: 0,
+    line: 0.035,
     rect: [],
 }
 
@@ -36,6 +37,10 @@ const Board = {
     side: [],
 
     Init() {
+        const param = new URLSearchParams(window.location.search)
+        if (param.has("Width")) this.width = Number(param.get("Width"))
+        if (param.has("Height")) this.height = Number(param.get("Height"))
+
         let line = this.width + 1
         this.offset = [-line - 1, -line, -line + 1, -1, 1, line - 1, line, line + 1]
         this.table = []
@@ -52,8 +57,29 @@ const Board = {
             }
         }
 
-        this.table.push(Color.Border) // last cell's bottom right neighbour 
-        this.Create()
+        this.table.push(Color.Border) // last cell's bottom right neighbour
+
+        if (param.has("Table")) {
+            let str = param.get("Table")
+            this.clue = []
+
+            for (let i = 0; i < this.rect.length && i < str.length; i++) {
+                if (str.charAt(i) == "X")
+                    this.table[this.rect[i]] = Color.Token
+                else {
+                    let k = Number(str.charAt(i))
+
+                    if (k > 0 && k < 5) {
+                        this.table[this.rect[i]] = k
+                        this.clue.push(this.rect[i])
+                    }
+                }
+            }
+
+            this.GetSide()
+        }
+
+        else this.Create()
         this.finish = this.clue.length
     },
 
@@ -88,25 +114,8 @@ const Board = {
     },
 
     Evaluate() {
-        this.side = [] // empty space around clue
-//      this.clue = []
         this.total = 0
-
-//      this.rect.forEach((n) => { // find clues
-//          let k = this.table[n]
-//          if (k >= 0 && k < 9) this.clue.push(n)
-//      })
-
-        for (let i = 0; i < this.clue.length; i++) { // find sides
-            let k = this.clue[i]
-
-            this.offset.forEach((s) => {
-                let pos = k + s;
-
-                if (this.table[pos] == Color.Empty && !this.FindSide(pos))
-                    this.side.push({pos: pos, clue: i, count: this.table[k]})
-            })
-        }
+        this.GetSide()
 
         if (this.clue.length > 0 && this.side.length > 0)
             this.Solve(0, 0) // check side 0, no token around
@@ -181,7 +190,6 @@ const Board = {
             let line = true // empty
 
             for (let x = 0, i = j; x < this.width; x++, i++) {
-
                 if (this.table[this.rect[i]] < 9) { // clue
                     line = false
                     break
@@ -238,6 +246,21 @@ const Board = {
         })
     },
 
+    GetSide() {
+        this.side = [] // empty space around clue
+
+        for (let i = 0; i < this.clue.length; i++) {
+            let k = this.clue[i]
+
+            this.offset.forEach((s) => {
+                let pos = k + s;
+
+                if (this.table[pos] == Color.Empty && !this.FindSide(pos))
+                    this.side.push({pos: pos, clue: i, count: this.table[k]})
+            })
+        }
+    },
+
     FindSide(k) {
         for (let i = 0; i < this.side.length; i++)
             if (this.side[i].pos == k) return true
@@ -246,8 +269,7 @@ const Board = {
 
     Value(i) {
         let k = this.table[i] & 15
-        if (k >= 0 && k < 9) return k
-        return -1
+        return (k < 9 ? k : -1)
     }
 }
 
@@ -259,9 +281,14 @@ function Resize() {
     canvas.width = window.innerWidth
     canvas.height = window.innerHeight
 
-    Layout.width = Math.min(canvas.width, canvas.height) / (Board.width + 1 + (Board.width - 1) * 0.035)
+    let width = Board.width + 1 + (Board.width - 1) * Layout.line
+    let height = Board.height + 1 + (Board.height - 1) * Layout.line
 
-    let pad = Math.floor(Layout.width * 0.035)
+    if (canvas.width / canvas.height <= width / height)
+        Layout.width = canvas.width / width
+    else Layout.width = canvas.height / height
+
+    let pad = Math.floor(Layout.width * Layout.line)
     if (pad == 0) pad = 1
     Layout.width = Math.floor(Layout.width)
     Layout.half = Layout.width / 2
@@ -290,16 +317,21 @@ function Draw() {
         let k2 = Board.table[Board.rect[i]]
         let k = k2 & 15
 
+        context.beginPath();
+        context.rect(Layout.rect[i].x, Layout.rect[i].y, Layout.width, Layout.width)
         context.fillStyle = Color.Clue[(k > 0 && k < 5 ? k : 0)]
-        context.fillRect(Layout.rect[i].x, Layout.rect[i].y, Layout.width, Layout.width)
+        context.fill()
+        context.lineWidth = 1
+        context.strokeStyle = "black"
+        context.stroke()
 
         if (k == Color.Token) {
             context.beginPath()
             context.arc(Layout.rect[i].x + Layout.half, Layout.rect[i].y + Layout.half, Layout.radius, 0, 2 * Math.PI)
             context.fillStyle = "#F08F1E"
             context.fill()
-            context.lineWidth = Layout.width * 0.035
-            context.strokeStyle = Color.Back
+            context.lineWidth = Layout.width * Layout.line
+            context.strokeStyle = "black" // Color.Back
             context.stroke()
         }
 
@@ -310,8 +342,8 @@ function Draw() {
             context.moveTo(Layout.rect[i].x + Layout.width * 0.85, Layout.rect[i].y + Layout.width * 0.15)
             context.lineTo(Layout.rect[i].x + Layout.width * 0.15, Layout.rect[i].y + Layout.width * 0.85)
 
-            context.lineWidth = Layout.width * 0.035
-            context.strokeStyle = Color.Back
+            context.lineWidth = Layout.width * Layout.line
+            context.strokeStyle = "black" // Color.Back
             context.stroke()
         }
     }
