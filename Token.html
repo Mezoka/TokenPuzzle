@@ -41,6 +41,13 @@ const Board = {
         if (param.has("Width")) this.width = Number(param.get("Width"))
         if (param.has("Height")) this.height = Number(param.get("Height"))
 
+        if (this.width < 2) this.width = 2
+        if (this.height < 2) this.height = 2
+        if (this.width == 2 && this.height == 2) {
+            this.width = 3
+            this.height = 3
+        }
+
         let line = this.width + 1
         this.offset = [-line - 1, -line, -line + 1, -1, 1, line - 1, line, line + 1]
         this.table = []
@@ -62,6 +69,7 @@ const Board = {
         if (param.has("Table")) {
             let str = param.get("Table")
             this.clue = []
+            this.finish = 0
 
             for (let i = 0; i < this.rect.length && i < str.length; i++) {
                 if (str.charAt(i) == "X")
@@ -77,15 +85,19 @@ const Board = {
             }
 
             this.GetSide()
-        }
 
+            this.clue.forEach((i) => {
+                if (this.table[i] == this.Count(i)) this.table[i] |= 16 // clue complete
+                else this.finish++
+            })
+        }
         else this.Create()
-        this.finish = this.clue.length
     },
 
     Create() {
         this.clue = []
         this.rect.forEach((n) => {this.table[n] = Color.Empty}) // clear table
+        let size = Math.min(this.width, this.height)
 
         while(1) {
             while(1) { // add clue
@@ -108,9 +120,10 @@ const Board = {
                 value = this.Evaluate()
             }
 
-            if (value == 1 && this.clue.length >= 6 && this.Span()) break
+            if (value == 1 && (size < 5 || this.clue.length >= 6) && this.Span()) break
         }
 
+        this.finish = this.clue.length
     },
 
     Evaluate() {
@@ -254,8 +267,8 @@ const Board = {
 
             this.offset.forEach((s) => {
                 let pos = k + s;
-
-                if (this.table[pos] == Color.Empty && !this.FindSide(pos))
+                let n = this.table[pos]
+                if ((n == Color.Empty || n == Color.Token) && !this.FindSide(pos))
                     this.side.push({pos: pos, clue: i, count: this.table[k]})
             })
         }
@@ -361,6 +374,13 @@ function KeyDown(event) {
 
         Board.finish = Board.clue.length
         Draw()
+    }
+    if (event.key == " ") {
+        let str = ""
+        const list = "0123456789X"
+
+        Board.rect.forEach((n) => {str += list.charAt(Board.table[n] & ~16)})
+        navigator.clipboard.writeText("Width=" + Board.width.toString() + "&Height=" + Board.height.toString() + "&Table=" + str)
     }
 }
 
