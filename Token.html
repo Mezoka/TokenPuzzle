@@ -43,6 +43,8 @@ const Board = {
 
         if (this.width < 2) this.width = 2
         if (this.height < 2) this.height = 2
+        if (this.width > 6) this.width = 6
+        if (this.height > 6) this.height = 6
         if (this.width == 2 && this.height == 2) {
             this.width = 3
             this.height = 3
