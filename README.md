@@ -13,4 +13,4 @@ Put tokens on grey squares by the following rules:
 
 - Exactly one token around each green square
 
-[Play Token Puzzle](https://mezoka.github.io/TokenPuzzle)
+### [Play Token Puzzle](https://mezoka.github.io/TokenPuzzle)
