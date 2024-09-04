@@ -12,8 +12,8 @@ const Color = {
     Empty: 9,
     Token: 10,
     Border: 11,
-    Back: "#18293D",
-    Clue: ["#808080", "#229E31", "#005AB6", "#5D2F8F", "#D71E1E"]
+    Back: "#18283C",
+    Clue: ["#808080", "#22A62C", "#2650DA", "#8018B2", "#E02020"]
 }
 
 const Layout = {
@@ -343,7 +343,7 @@ function Draw() {
         if (k == Color.Token) {
             context.beginPath()
             context.arc(Layout.rect[i].x + Layout.half, Layout.rect[i].y + Layout.half, Layout.radius, 0, 2 * Math.PI)
-            context.fillStyle = "#F08F1E"
+            context.fillStyle = "#F0901E"
             context.fill()
             context.lineWidth = Layout.width * Layout.line
             context.strokeStyle = "black" // Color.Back
