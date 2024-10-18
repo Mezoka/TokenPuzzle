@@ -75,20 +75,22 @@ const Board = {
             this.pattern.push(list)
         }
 
+        let list = []
+        if (param.has("Color")) for (i of param.get("Color").split("").map(Number))
+            if (i > 0 && i < 5 && !list.includes(i)) list.push(i)
+        if (list.length == 0) list = [1, 2, 3, 4]
+
         if (param.has("Table")) {
             let str = param.get("Table")
             this.clue = []
             this.finish = 0
 
-            for (let i = 0; i < this.rect.length && i < str.length; i++) {
-                let n = this.rect[i]
-
-                if (str.charAt(i) == "X")
-                    this.table[n] = Color.Token
-                else {
+            for (let i = 0; i < this.rect.length && i < str.length; i++) { // add clues
+                if (str.charAt(i) != "X") {
                     let k = Number(str.charAt(i))
 
                     if (k > 0 && k < 5) {
+                        let n = this.rect[i]
                         this.table[n] = k
                         this.clue.push({pos: n, value: k,
                             size: 0, token: 0, turn: 0, end: 0, list: [], iter: [], border: []})
@@ -98,16 +100,20 @@ const Board = {
 
             this.GetBorder()
 
+            for (let i = 0; i < this.rect.length && i < str.length; i++) // add tokens
+                if (str.charAt(i) == "X")
+                    this.table[this.rect[i]] = Color.Token
+
             for (n of this.clue) {
                 let k = n.pos
                 if (this.table[k] == this.Count(k)) this.table[k] |= 16 // clue complete
                 else this.finish++
             }
         }
-        else this.Create()
+        else this.Create(list)
     },
 
-    Create() {
+    Create(list) {
         this.clue = []
         for (n of this.rect) this.table[n] = Color.Empty // clear table
         let size = Math.min(this.width, this.height)
@@ -119,7 +125,7 @@ const Board = {
                     let i = this.rect[Math.floor(Math.random() * this.rect.length)]
 
                     if (!this.FindClue(i)) {
-                        let k = Math.floor(Math.random() * 4) + 1
+                        let k = list[Math.floor(Math.random() * list.length)]
                         this.clue.push({pos: i, value: k,
                                 size: 0, token: 0, turn: 0, end: 0, list: [], iter: [], border: []})
                         this.table[i] = k
