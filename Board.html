@@ -1,0 +1,389 @@
+<html>
+<body style="margin: 0; touch-action: manipulation">
+<svg height="100%" width="100%">
+    <rect fill="#303030" width="100%" height="100%"/>
+</svg>
+
+<script>
+document.querySelector("body").addEventListener("keydown", KeyDown)
+document.querySelector("body").addEventListener("click", Click)
+const svg = document.querySelector("svg");
+const param = new URLSearchParams(window.location.search)
+
+const Color = {
+    Empty: 9,
+    Token: 10,
+    Border: 11,
+    Back: "#18283C",
+    Clue: ["#808080", "#22A62C", "#2650DA", "#8018B2", "#E02020"]
+}
+
+const Layout = {
+    width: 0,
+    pad: 20,
+    rect: [],
+}
+
+const Board = {
+    width: 7,
+    height: 7,
+    total: 0,
+    finish: 0,
+
+    table: [],
+    rect: [],
+    offset: [],
+    clue: [],
+
+    Init() {
+        if (param.has("Width")) this.width = Number(param.get("Width"))
+        if (param.has("Height")) this.height = Number(param.get("Height"))
+
+        if (this.width != 7 && this.width != 9) this.width = 7
+        if (this.height != 7 && this.height != 9) this.height = 7
+
+        let line = this.width + 1
+        this.offset = [-line - 1, -line, -line + 1, -1, 1, line - 1, line, line + 1]
+        this.table = []
+        this.rect = []
+        this.clue = []
+
+        for (let y = 0, i = 0, k = this.height + 1; y <= k; y++) {
+            for (let x = 0; x <= this.width; x++, i++) {
+                if (x == 0 || y == 0 || y == k)
+                    this.table.push(Color.Border)
+                else {
+                    this.rect.push(i)
+                    this.table.push(Color.Empty)
+                    if (!((x & 1) | (y & 1))) this.clue.push(i) // both even
+                }
+            }
+        }
+
+        this.table.push(Color.Border) // last cell's bottom right neighbour
+
+        for (let y = 0, y2 = this.height - 1, i = 0; y <= y2; y++) {
+            for (let x = 0, x2 = this.width - 1; x <= x2; x++, i++) {
+                if (((x == 0 || x == x2) && (y == 0 || y == y2)) ||
+                    ((x == 0 || x == x2) && (y & 1)) || ((y == 0 || y == y2) && (x & 1))
+                ) this.table[this.rect[i]] = Color.Border
+            }
+        }
+
+        if (param.has("Table")) {
+            let str = param.get("Table")
+            for (let n of this.clue) this.table[n] = 0
+            this.finish = 0
+
+            for (let i = 0; i < this.rect.length && i < str.length; i++) {
+                let n = this.rect[i]
+                let b = str.charAt(i)
+
+                if (b == "X") {
+                    if (this.table[n] == Color.Empty)
+                    this.table[n] = Color.Token
+                }
+                else if (b != "A") {
+                    let k = Number(b)
+                    if (k > 0 && k < 5) {
+                        if (this.table[n] == 0) this.table[n] = k
+                    }
+                }
+            }
+        }
+        else this.Create()
+    },
+
+    Start() {
+        this.Clear()
+        this.total = 0
+        const side = []
+
+        for (let i = this.clue.length - 1; i > 0; i--) { // shuffle clue
+            const j = Math.floor(Math.random() * (i + 1))
+            [this.clue[i], this.clue[j]] = [this.clue[j], this.clue[i]]
+        }
+
+        for (let i = 0; i < this.clue.length; i++) { // one clue one token
+            let j = this.clue[i]
+            let rect = []
+            let rect2 = []
+
+            this.offset.forEach((s) => { // get space around
+                let k = j + s;
+                let n = this.table[k]
+                if (n == Color.Empty) {
+                    rect2.push(k)
+                    if (!side.includes(k)) {
+                        side.push(k)
+                        rect.push(k)
+                    }
+                }
+            });
+
+            if (this.Count(j) == 0) {
+                if (rect.length == 0) rect = rect2 // no space for token
+                this.table[rect[Math.floor(Math.random() * rect.length)]] = Color.Token
+                this.total++
+            }
+        }
+
+        for (let n of this.clue) {
+            let k = this.Count(n)
+            if (k >= 3) return false
+            this.table[n] = k
+        }
+
+        return true
+    },
+
+    Create() {
+        while (!this.Start()) {} // one clue at least one token
+        const rect = [] // get remaining space
+        this.rect.forEach((n) => {if (this.table[n] == Color.Empty) rect.push(n)});
+
+        let size = this.width + this.height
+        let n = []
+
+        if (size < 16) n = [7, 8, 9, 7, 8, 9, 10, 11, 12, 13, 14]
+        else if (size > 16) n = [14, 15, 16, 17, 18, 19, 20, 14, 15, 16, 17, 18, 19, 20, 12, 13, 21, 22, 23, 24]
+        else n = [11, 12, 13, 14, 11, 12, 13, 14, 9, 10, 15, 16, 17, 18]
+        let total = n[Math.floor(Math.random() * n.length)] // token number
+
+        for (let i = rect.length - 1; i > 0; i--) { // shuffle space
+            const j = Math.floor(Math.random() * (i + 1))
+            [rect[i], rect[j]] = [rect[j], rect[i]]
+        }
+
+        for (let i = 0; i < rect.length; i++) { // put token on space
+            if (this.total >= total) break
+            this.table[rect[i]] = Color.Token
+            this.total++
+
+            for (let j = 0; j < this.clue.length; j++) {
+                if (this.Count(this.clue[j]) > 4) {
+                    this.table[rect[i]] = Color.Empty // take back
+                    this.total--
+                    break
+                }
+            }
+        }
+
+        this.clue.forEach((n) => {this.table[n] = this.Count(n)});
+        let solve = ""
+
+        for (let y = 0, i = 0; y < this.height; y++) { // debug
+            for (let x = 0; x < this.width; x++, i++) {
+                let k = this.table[this.rect[i]]
+                if (k == Color.Empty || k == Color.Border) solve += "."
+                else if (k == Color.Token) solve += "X"
+                else solve += String(k & 15)
+            }
+            solve += "\n"
+        }
+
+        console.log(solve)
+        this.Clear()
+        this.finish = this.clue.length
+    },
+
+    Clear() {
+        this.rect.forEach((n) => {
+            if (this.table[n] == Color.Token) this.table[n] = Color.Empty});
+    },
+
+    Count(i) {
+        let total = 0
+        this.offset.forEach((k) => {
+            if (this.table[i + k] == Color.Token) total++})
+        return total
+    },
+
+    Value(i) { // clue k >= 0
+        let k = this.table[i] & 15
+        return (k < 9 ? k : -1)
+    }
+}
+
+Board.Init()
+
+Board.rect.forEach((n) => {
+    let rect = document.createElement("img")
+    rect.classList.add("Block")
+
+    let k = Board.Value(n)
+    if (k >= 0) rect.src = "Photo/" + String(k).padStart(2, '0') + ".png"
+    else if (Board.table[n] == Color.Border) rect.src = "Photo/08.png"
+    else rect.src = "Photo/00.png"
+    rect.style.position = "absolute"
+    document.body.appendChild(rect)
+
+    rect = document.createElement("img")
+    rect.classList.add("Token")
+    rect.src = "Photo/06.png"
+    rect.style.position = "absolute"
+    rect.style.display = ((Board.table[n] == Color.Token) ? "block" : "none")
+    document.body.appendChild(rect)
+});
+
+Board.clue.forEach((n) => {
+    const rect = document.createElement("img")
+    rect.classList.add("Check")
+    rect.src = "Photo/Check.png"
+    rect.style.position = "absolute"
+    rect.style.display = "none"
+    document.body.appendChild(rect)
+});
+
+const block = document.getElementsByClassName("Block")
+const token = document.getElementsByClassName("Token")
+const check = document.getElementsByClassName("Check")
+
+if (param.has("Table")) {
+    Board.clue.forEach((n, i) => {
+        if (Board.table[n] == Board.Count(n)) {
+            Board.table[n] |= 16 // clue complete
+            check[i].style.display = "block"
+        }
+        else Board.finish++
+    });
+}
+
+window.onresize = Resize
+Resize()
+
+function Resize() {
+    let width = svg.clientWidth - Layout.pad * 2
+    let height = svg.clientHeight - Layout.pad * 2
+
+    if (width / height <= Board.width / Board.height)
+        Layout.width = Math.floor(width / Board.width)
+    else Layout.width = Math.floor(height / Board.height)
+
+    Layout.rect = []
+
+    a = {x: Math.floor((svg.clientWidth - Layout.width * Board.width) / 2),
+        y: Math.floor((svg.clientHeight - Layout.width * Board.height) / 2)}
+
+    for (let y = 0; y < Board.height; y++, a.y += Layout.width) {
+        let b = {...a}
+
+        for (let x = 0; x < Board.width; x++, b.x += Layout.width)
+            Layout.rect.push({x: b.x, y: b.y})
+    }
+
+    [...block].forEach((n, i) => {
+        n.style.width = Layout.width
+        n.style.height = Layout.width
+        n.style.left = Layout.rect[i].x
+        n.style.top = Layout.rect[i].y
+    });
+
+    [...token].forEach((n, i) => {
+        n.style.width = Layout.width
+        n.style.height = Layout.width
+        n.style.left = Layout.rect[i].x
+        n.style.top = Layout.rect[i].y
+    });
+
+    for (let i = 0; i < Board.rect.length; i++) {
+        let j = Board.rect[i]
+        if (Board.Value(j) >= 0) { // clue
+            const rect = check[Board.clue.indexOf(j)]
+            rect.style.width = Layout.width
+            rect.style.height = Layout.width
+            rect.style.position = "absolute"
+            rect.style.left = Layout.rect[i].x
+            rect.style.top = Layout.rect[i].y
+        }
+    }
+}
+
+function Marker(i) { // check clue around
+    Board.offset.forEach((k) => {
+        let j = i + k
+        let n = Board.Value(j)
+
+        if (n > 0) { // is clue
+            if (n == Board.Count(j)) { // clue complete
+                if (!(Board.table[j] & 16)) {
+                    Board.table[j] |= 16
+                    Board.finish--
+                    check[Board.clue.indexOf(j)].style.display = "block"
+                }
+            }
+            else {
+                if (Board.table[j] & 16) {
+                    Board.table[j] &= ~16
+                    Board.finish++
+                    check[Board.clue.indexOf(j)].style.display = "none"
+                }
+            }
+        }
+    });
+}
+
+function KeyDown(event) {
+    if (event.key == "Escape") {
+        Board.rect.forEach((i) => {
+            let k = Board.table[i]
+            if (k == Color.Token)
+                Board.table[i] = Color.Empty
+            else if (k != Color.Border)
+                Board.table[i] &= ~16
+        });
+
+        [...token].forEach((n) => n.style.display = "none");
+        [...check].forEach((n) => n.style.display = "none");
+        Board.finish = Board.clue.length
+    }
+    else if (event.key == " ") {
+        let str = ""
+        const list = "012345678AX"
+        Board.rect.forEach((n) => {
+            let k = Board.table[n]
+            if (k == Color.Border) k = Color.Empty
+            str += list.charAt(k & ~16)
+        })
+        navigator.clipboard.writeText("Width=" + Board.width.toString() + "&Height=" + Board.height.toString() + "&Table=" + str)
+    }
+}
+
+function Click(event) {
+    for (let i = 0; i < Layout.rect.length; i++) {
+        if (Layout.rect[i].y <= event.clientY && event.clientY < Layout.rect[i].y + Layout.width) {
+            if (Layout.rect[i].x <= event.clientX && event.clientX < Layout.rect[i].x + Layout.width) {
+                let j = Board.rect[i]
+                let k = Board.table[j]
+
+                if (k == Color.Empty || k == Color.Token) {
+                    if (k == Color.Empty) {
+                        Board.table[j] = Color.Token
+                        token[i].style.display = "block"
+                    }
+                    else {
+                        Board.table[j] = Color.Empty
+                        token[i].style.display = "none"
+                    }
+
+                    Marker(j)
+
+                    if (Board.finish == 0) {
+                        var audio = new Audio("End.mp3")
+                        audio.play()
+                    }
+                    else if (k == Color.Empty) {
+                        var audio = new Audio("Click.wav")
+                        audio.play()
+                    }
+
+                    return
+                }
+            }
+        }
+    }
+}
+
+</script>
+</body>
+</html>
