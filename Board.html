@@ -100,7 +100,7 @@ const Board = {
         const side = []
 
         for (let i = this.clue.length - 1; i > 0; i--) { // shuffle clue
-            const j = Math.floor(Math.random() * (i + 1))
+            const j = Math.floor(Math.random() * (i + 1));
             [this.clue[i], this.clue[j]] = [this.clue[j], this.clue[i]]
         }
 
@@ -151,7 +151,7 @@ const Board = {
         let total = n[Math.floor(Math.random() * n.length)] // token number
 
         for (let i = rect.length - 1; i > 0; i--) { // shuffle space
-            const j = Math.floor(Math.random() * (i + 1))
+            const j = Math.floor(Math.random() * (i + 1));
             [rect[i], rect[j]] = [rect[j], rect[i]]
         }
 
